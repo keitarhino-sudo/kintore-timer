@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<title>筋トレタイマー</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon.svg">
+<style>
+  :root{
+    --bg:#0f172a;
+    --panel:#1a2438;
+    --panel-2:#232f47;
+    --text:#eef2f9;
+    --sub:#8b95ab;
+    --accent:#4f8cff;
+    --accent-2:#6ee7b7;
+    --danger:#ff6b6b;
+    --warn:#ffb84f;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+    overscroll-behavior:none;
+    user-select:none;
+  }
+  #app{
+    max-width:520px; margin:0 auto;
+    min-height:100vh;
+    display:flex; flex-direction:column;
+    padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+  }
+  .view{ display:none; flex:1; flex-direction:column; padding:16px 0 32px; }
+  .view.active{ display:flex; }
+
+  h1{ font-size:22px; margin:12px 0 4px; }
+  .sub{ color:var(--sub); font-size:13px; margin-bottom:20px; }
+
+  .card{
+    background:var(--panel);
+    border-radius:16px;
+    padding:16px 18px;
+    margin-bottom:12px;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px;
+  }
+  .card:active{ background:var(--panel-2); }
+  .card-info{ flex:1; min-width:0; }
+  .card-title{ font-size:17px; font-weight:600; margin-bottom:4px; }
+  .card-meta{ font-size:12px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card-actions{ display:flex; gap:8px; flex-shrink:0; }
+
+  button{ font-family:inherit; border:none; cursor:pointer; background:transparent; color:inherit; }
+  .btn{
+    background:var(--accent); color:#fff;
+    border-radius:12px; padding:12px 18px;
+    font-size:15px; font-weight:600;
+  }
+  .btn:active{ opacity:.8; }
+  .btn.secondary{ background:var(--panel-2); color:var(--text); }
+  .btn.danger{ background:transparent; color:var(--danger); }
+  .btn.ghost{ background:transparent; color:var(--sub); }
+  .btn.block{ width:100%; padding:16px; font-size:16px; }
+  .icon-btn{
+    background:var(--panel-2); color:var(--text);
+    width:36px; height:36px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px;
+  }
+
+  .fab-row{ display:flex; gap:10px; margin-top:auto; padding-top:16px; }
+
+  .empty{ color:var(--sub); text-align:center; margin-top:60px; font-size:14px; line-height:1.8; }
+
+  /* editor */
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:12px; color:var(--sub); margin-bottom:6px; }
+  .field input[type=text]{
+    width:100%; background:var(--panel); border:1px solid #2c3958; color:var(--text);
+    border-radius:10px; padding:12px 14px; font-size:16px;
+  }
+  .interval-row{
+    display:flex; align-items:center; gap:8px;
+    background:var(--panel); border-radius:12px; padding:10px 12px; margin-bottom:8px;
+  }
+  .interval-row .idx{ color:var(--sub); font-size:13px; width:20px; flex-shrink:0; }
+  .interval-row input[type=text]{
+    flex:1; min-width:0; background:transparent; border:none; color:var(--text); font-size:15px; padding:6px 4px;
+  }
+  .interval-row input[type=number]{
+    width:64px; background:var(--panel-2); border:none; color:var(--text);
+    font-size:16px; text-align:center; border-radius:8px; padding:6px 2px;
+  }
+  .interval-row .sec-label{ color:var(--sub); font-size:12px; }
+  .interval-row .del{ color:var(--danger); font-size:18px; width:28px; text-align:center; flex-shrink:0; }
+  .reorder-btns{ display:flex; flex-direction:column; gap:2px; flex-shrink:0; }
+  .reorder-btns button{ background:none; color:var(--sub); font-size:12px; padding:2px 4px; }
+
+  .add-interval{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background:transparent;
+    border:1.5px dashed #33415f; border-radius:12px; padding:12px;
+    color:var(--sub); font-size:14px; margin-bottom:20px; width:100%;
+  }
+
+  .editor-actions{ display:flex; gap:10px; margin-top:auto; padding-top:12px; }
+
+  /* timer view */
+  .timer-view{ align-items:center; text-align:center; justify-content:flex-start; }
+  .timer-header{ width:100%; display:flex; align-items:center; justify-content:space-between; }
+  .timer-header .tpl-name{ font-size:14px; color:var(--sub); }
+
+  .dots{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin:18px 0 8px; max-width:100%; }
+  .dot{ width:9px; height:9px; border-radius:50%; background:#2c3958; }
+  .dot.done{ background:var(--accent-2); }
+  .dot.current{ background:var(--accent); transform:scale(1.4); }
+
+  .stage{
+    flex:1; width:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:6px;
+  }
+  .next-label{ color:var(--sub); font-size:13px; min-height:18px; }
+  .current-label{ font-size:26px; font-weight:700; margin-top:4px; word-break:break-word; padding:0 10px; }
+  .countdown{
+    font-size:104px; font-weight:800; font-variant-numeric:tabular-nums;
+    margin:4px 0; line-height:1;
+    transition:color .2s;
+  }
+  .countdown.warn{ color:var(--warn); }
+  .countdown.last{ color:var(--danger); }
+  .progress-ring-wrap{ position:relative; width:260px; height:260px; display:flex; align-items:center; justify-content:center; }
+  .progress-ring-wrap svg{ position:absolute; top:0; left:0; transform:rotate(-90deg); }
+
+  .total-remaining{ color:var(--sub); font-size:13px; margin-top:6px; }
+
+  .controls{ display:flex; align-items:center; justify-content:center; gap:16px; width:100%; padding-top:10px; }
+  .ctrl-btn{
+    background:var(--panel); color:var(--text);
+    width:64px; height:64px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px;
+  }
+  .ctrl-btn.main{
+    width:82px; height:82px; background:var(--accent); font-size:26px;
+  }
+  .ctrl-btn.main.paused{ background:var(--accent-2); color:#0f172a; }
+  .ctrl-btn:active{ opacity:.75; }
+
+  .flash-overlay{
+    position:fixed; inset:0; background:var(--accent-2); opacity:0; pointer-events:none;
+    transition:opacity .12s; z-index:50;
+  }
+  .flash-overlay.on{ opacity:.35; transition:opacity 0s; }
+
+  .done-screen{ align-items:center; justify-content:center; text-align:center; gap:10px; }
+  .done-screen .big{ font-size:48px; }
+
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:var(--panel-2); color:var(--text); padding:10px 18px; border-radius:20px;
+    font-size:13px; opacity:0; pointer-events:none; transition:opacity .2s; z-index:60;
+  }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME -->
+  <section class="view active" id="view-home">
+    <h1>筋トレタイマー</h1>
+    <div class="sub">テンプレートを選んでスタート</div>
+    <div id="template-list"></div>
+    <div class="empty" id="home-empty" style="display:none;">
+      テンプレートがまだないで。<br>右下の「＋」から作成しよう。
+    </div>
+    <div class="fab-row">
+      <button class="btn block" id="btn-new-template">＋ 新しいテンプレート</button>
+    </div>
+  </section>
+
+  <!-- EDITOR -->
+  <section class="view" id="view-editor">
+    <h1 id="editor-title">テンプレート作成</h1>
+    <div class="field">
+      <label>テンプレート名</label>
+      <input type="text" id="tpl-name" placeholder="例：いつもの筋トレ">
+    </div>
+    <div id="interval-list"></div>
+    <button class="add-interval" id="btn-add-interval">＋ 種目を追加</button>
+    <div class="editor-actions">
+      <button class="btn secondary" id="btn-editor-cancel" style="flex:1;">キャンセル</button>
+      <button class="btn" id="btn-editor-save" style="flex:1;">保存</button>
+    </div>
+  </section>
+
+  <!-- TIMER -->
+  <section class="view timer-view" id="view-timer">
+    <div class="timer-header">
+      <button class="icon-btn" id="btn-timer-back">✕</button>
+      <div class="tpl-name" id="timer-tpl-name"></div>
+      <button class="icon-btn" id="btn-timer-restart">↺</button>
+    </div>
+    <div class="dots" id="timer-dots"></div>
+    <div class="stage">
+      <div class="next-label" id="timer-next"></div>
+      <div class="progress-ring-wrap">
+        <svg width="260" height="260">
+          <circle cx="130" cy="130" r="115" stroke="#232f47" stroke-width="10" fill="none"/>
+          <circle cx="130" cy="130" r="115" stroke="var(--accent)" stroke-width="10" fill="none"
+            stroke-linecap="round" id="ring-progress" stroke-dasharray="722.6" stroke-dashoffset="0"/>
+        </svg>
+        <div>
+          <div class="countdown" id="timer-countdown">--</div>
+          <div class="current-label" id="timer-current"></div>
+        </div>
+      </div>
+      <div class="total-remaining" id="timer-total"></div>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn" id="btn-skip-back">⏮</button>
+      <button class="ctrl-btn main" id="btn-play-pause">▶</button>
+      <button class="ctrl-btn" id="btn-skip-fwd">⏭</button>
+    </div>
+  </section>
+
+  <!-- DONE -->
+  <section class="view done-screen" id="view-done">
+    <div class="big">🎉</div>
+    <h1>お疲れ様！</h1>
+    <div class="sub" id="done-summary"></div>
+    <button class="btn block" id="btn-done-home" style="max-width:260px;">ホームに戻る</button>
+  </section>
+
+</div>
+<div class="flash-overlay" id="flash"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const STORAGE_KEY = "kintore-timer-templates-v1";
+  const RING_CIRC = 2 * Math.PI * 115;
+
+  const $ = (id) => document.getElementById(id);
+  const views = {
+    home: $("view-home"), editor: $("view-editor"), timer: $("view-timer"), done: $("view-done")
+  };
+  function showView(name){
+    Object.values(views).forEach(v => v.classList.remove("active"));
+    views[name].classList.add("active");
+  }
+
+  // ---------- storage ----------
+  function loadTemplates(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    // seed with the user's real routine on first run
+    const seeded = [{
+      id: cryptoId(),
+      name: "いつもの筋トレ",
+      intervals: [
+        { label: "プッシュアップ", duration: 15 },
+        { label: "ダンベル", duration: 20 },
+        { label: "種目3", duration: 18 },
+        { label: "種目4", duration: 25 },
+      ]
+    }];
+    saveTemplates(seeded);
+    return seeded;
+  }
+  function saveTemplates(list){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+  function cryptoId(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  let templates = loadTemplates();
+
+  // ---------- toast ----------
+  let toastTimer = null;
+  function toast(msg){
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
+  }
+
+  // ================= HOME =================
+  function renderHome(){
+    const list = $("template-list");
+    list.innerHTML = "";
+    $("home-empty").style.display = templates.length ? "none" : "block";
+    templates.forEach(tpl => {
+      const total = tpl.intervals.reduce((s,i) => s+i.duration, 0);
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="card-info">
+          <div class="card-title">${escapeHtml(tpl.name)}</div>
+          <div class="card-meta">${tpl.intervals.length}種目・計${fmtTime(total)}・${tpl.intervals.map(i=>i.duration+"s").join(" / ")}</div>
+        </div>
+        <div class="card-actions">
+          <button class="icon-btn btn-edit">✎</button>
+          <button class="icon-btn btn-start">▶</button>
+        </div>
+      `;
+      card.querySelector(".btn-start").addEventListener("click", () => startTimer(tpl));
+      card.querySelector(".btn-edit").addEventListener("click", () => openEditor(tpl));
+      list.appendChild(card);
+    });
+  }
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function fmtTime(sec){
+    const m = Math.floor(sec/60), s = sec%60;
+    return m>0 ? `${m}分${s}秒` : `${s}秒`;
+  }
+
+  $("btn-new-template").addEventListener("click", () => openEditor(null));
+
+  // ================= EDITOR =================
+  let editingId = null;
+  let editingIntervals = [];
+
+  function openEditor(tpl){
+    editingId = tpl ? tpl.id : null;
+    editingIntervals = tpl ? tpl.intervals.map(i => ({...i})) : [
+      { label: "種目1", duration: 20 }
+    ];
+    $("editor-title").textContent = tpl ? "テンプレート編集" : "テンプレート作成";
+    $("tpl-name").value = tpl ? tpl.name : "";
+    renderIntervalList();
+    showView("editor");
+  }
+
+  function renderIntervalList(){
+    const wrap = $("interval-list");
+    wrap.innerHTML = "";
+    editingIntervals.forEach((iv, idx) => {
+      const row = document.createElement("div");
+      row.className = "interval-row";
+      row.innerHTML = `
+        <div class="idx">${idx+1}</div>
+        <input type="text" class="label-input" value="${escapeHtml(iv.label)}" placeholder="種目名">
+        <input type="number" class="dur-input" value="${iv.duration}" min="1" max="3600">
+        <div class="sec-label">秒</div>
+        <div class="reorder-btns">
+          <button class="up">▲</button>
+          <button class="down">▼</button>
+        </div>
+        <div class="del">✕</div>
+      `;
+      row.querySelector(".label-input").addEventListener("input", e => { iv.label = e.target.value; });
+      row.querySelector(".dur-input").addEventListener("input", e => {
+        const v = parseInt(e.target.value, 10);
+        iv.duration = isNaN(v) ? 0 : v;
+      });
+      row.querySelector(".up").addEventListener("click", () => {
+        if (idx === 0) return;
+        [editingIntervals[idx-1], editingIntervals[idx]] = [editingIntervals[idx], editingIntervals[idx-1]];
+        renderIntervalList();
+      });
+      row.querySelector(".down").addEventListener("click", () => {
+        if (idx === editingIntervals.length-1) return;
+        [editingIntervals[idx+1], editingIntervals[idx]] = [editingIntervals[idx], editingIntervals[idx+1]];
+        renderIntervalList();
+      });
+      row.querySelector(".del").addEventListener("click", () => {
+        editingIntervals.splice(idx, 1);
+        renderIntervalList();
+      });
+      wrap.appendChild(row);
+    });
+  }
+
+  $("btn-add-interval").addEventListener("click", () => {
+    editingIntervals.push({ label: `種目${editingIntervals.length+1}`, duration: 20 });
+    renderIntervalList();
+  });
+
+  $("btn-editor-cancel").addEventListener("click", () => { showView("home"); });
+
+  $("btn-editor-save").addEventListener("click", () => {
+    const name = $("tpl-name").value.trim();
+    if (!name){ toast("テンプレート名を入力して"); return; }
+    const cleaned = editingIntervals.filter(i => i.duration > 0);
+    if (cleaned.length === 0){ toast("種目を1つ以上追加して"); return; }
+    cleaned.forEach(i => { if (!i.label.trim()) i.label = "種目"; });
+
+    if (editingId){
+      const tpl = templates.find(t => t.id === editingId);
+      tpl.name = name;
+      tpl.intervals = cleaned;
+    } else {
+      templates.push({ id: cryptoId(), name, intervals: cleaned });
+    }
+    saveTemplates(templates);
+    renderHome();
+    showView("home");
+  });
+
+  // long-press style delete via edit screen: add a delete button dynamically when editing existing
+  (function addDeleteToEditor(){
+    const actions = document.querySelector(".editor-actions");
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn danger";
+    delBtn.textContent = "削除";
+    delBtn.style.display = "none";
+    delBtn.id = "btn-editor-delete";
+    delBtn.addEventListener("click", () => {
+      if (!editingId) return;
+      if (!confirm("このテンプレートを削除する？")) return;
+      templates = templates.filter(t => t.id !== editingId);
+      saveTemplates(templates);
+      renderHome();
+      showView("home");
+    });
+    actions.parentElement.insertBefore(delBtn, actions);
+  })();
+  // toggle delete button visibility whenever editor opens
+  const _origOpenEditor = openEditor;
+  openEditor = function(tpl){
+    _origOpenEditor(tpl);
+    $("btn-editor-delete").style.display = tpl ? "block" : "none";
+  };
+
+  // ================= TIMER =================
+  let session = null; // {template, cumulative[], total, idx, phaseStart, phaseElapsedBeforePause, running, raf}
+  let audioCtx = null;
+
+  function ensureAudio(){
+    if (!audioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  function beep(freq, duration, delay=0){
+    try{
+      const ctx = ensureAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + duration);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + duration + 0.02);
+    }catch(e){}
+  }
+  function playTransitionSound(){ beep(880, 0.15); beep(880, 0.15, 0.18); }
+  function playTickSound(){ beep(600, 0.08); }
+  function playFinishSound(){ beep(660,0.15,0); beep(880,0.15,0.18); beep(1046,0.25,0.36); }
+  function vibrate(pattern){ if (navigator.vibrate) navigator.vibrate(pattern); }
+  function flash(){
+    const el = $("flash");
+    el.classList.add("on");
+    setTimeout(() => el.classList.remove("on"), 150);
+  }
+
+  let wakeLock = null;
+  async function requestWakeLock(){
+    try{
+      if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+    }catch(e){}
+  }
+  function releaseWakeLock(){
+    if (wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && session && session.running) requestWakeLock();
+  });
+
+  function startTimer(tpl){
+    const cumulative = [];
+    let acc = 0;
+    tpl.intervals.forEach(iv => { acc += iv.duration; cumulative.push(acc); });
+    session = {
+      template: tpl,
+      cumulative,
+      total: acc,
+      idx: 0,
+      lastAnnouncedIdx: -1,
+      lastTickSecond: null,
+      phaseStartTs: null,
+      elapsedBeforePause: 0,
+      running: false,
+    };
+    $("timer-tpl-name").textContent = tpl.name;
+    renderDots();
+    showView("timer");
+    ensureAudio();
+    playPause(true);
+  }
+
+  function renderDots(){
+    const wrap = $("timer-dots");
+    wrap.innerHTML = "";
+    session.template.intervals.forEach((iv, i) => {
+      const d = document.createElement("div");
+      d.className = "dot" + (i < session.idx ? " done" : i === session.idx ? " current" : "");
+      wrap.appendChild(d);
+    });
+  }
+
+  function currentIntervalElapsedSec(){
+    const startOfCurrent = session.idx === 0 ? 0 : session.cumulative[session.idx-1];
+    const totalElapsed = session.elapsedBeforePause +
+      (session.running ? (performance.now() - session.phaseStartTs)/1000 : 0);
+    return totalElapsed - startOfCurrent;
+  }
+
+  function tick(){
+    if (!session || !session.running) return;
+    const iv = session.template.intervals[session.idx];
+    const elapsedInPhase = currentIntervalElapsedSec();
+    const remaining = Math.max(0, iv.duration - elapsedInPhase);
+    const remainingCeil = Math.ceil(remaining);
+
+    // countdown tick sound for last 3 seconds
+    if (remainingCeil <= 3 && remainingCeil >= 1 && remainingCeil !== session.lastTickSecond){
+      session.lastTickSecond = remainingCeil;
+      playTickSound();
+      vibrate(30);
+    }
+
+    if (remaining <= 0){
+      advancePhase();
+      return;
+    }
+
+    updateStageUI(iv, remaining);
+    session.raf = requestAnimationFrame(tick);
+  }
+
+  function updateStageUI(iv, remaining){
+    const countEl = $("timer-countdown");
+    countEl.textContent = Math.ceil(remaining);
+    countEl.classList.toggle("warn", remaining <= 5 && remaining > 3);
+    countEl.classList.toggle("last", remaining <= 3);
+    $("timer-current").textContent = iv.label;
+    const next = session.template.intervals[session.idx+1];
+    $("timer-next").textContent = next ? `次: ${next.label}（${next.duration}秒）` : "ラスト！";
+
+    const ratio = remaining / iv.duration;
+    $("ring-progress").setAttribute("stroke-dasharray", RING_CIRC.toFixed(1));
+    $("ring-progress").setAttribute("stroke-dashoffset", (RING_CIRC * (1-ratio)).toFixed(1));
+
+    const startOfCurrent = session.idx === 0 ? 0 : session.cumulative[session.idx-1];
+    const totalElapsed = startOfCurrent + (iv.duration - remaining);
+    const totalRemaining = Math.max(0, session.total - totalElapsed);
+    $("timer-total").textContent = `全体残り ${fmtClock(totalRemaining)}`;
+  }
+  function fmtClock(sec){
+    sec = Math.ceil(sec);
+    const m = Math.floor(sec/60), s = sec%60;
+    return `${m}:${String(s).padStart(2,"0")}`;
+  }
+
+  function advancePhase(){
+    session.idx += 1;
+    session.lastTickSecond = null;
+    const startOfCurrent = session.idx === 0 ? 0 : session.cumulative[session.idx-1];
+    session.elapsedBeforePause = startOfCurrent;
+    session.phaseStartTs = performance.now();
+
+    if (session.idx >= session.template.intervals.length){
+      finishSession();
+      return;
+    }
+    playTransitionSound();
+    vibrate([120,60,120]);
+    flash();
+    renderDots();
+    session.raf = requestAnimationFrame(tick);
+  }
+
+  function finishSession(){
+    session.running = false;
+    playFinishSound();
+    vibrate([150,80,150,80,300]);
+    releaseWakeLock();
+    const total = session.template.intervals.reduce((s,i)=>s+i.duration,0);
+    $("done-summary").textContent = `${session.template.name}（${session.template.intervals.length}種目・計${fmtTime(total)}）完了！`;
+    showView("done");
+  }
+
+  function playPause(forceStart){
+    if (!session) return;
+    const btn = $("btn-play-pause");
+    if (forceStart || !session.running){
+      session.running = true;
+      session.phaseStartTs = performance.now();
+      btn.textContent = "❚❚";
+      btn.classList.remove("paused");
+      requestWakeLock();
+      cancelAnimationFrame(session.raf);
+      session.raf = requestAnimationFrame(tick);
+    } else {
+      session.elapsedBeforePause += (performance.now() - session.phaseStartTs)/1000;
+      session.running = false;
+      btn.textContent = "▶";
+      btn.classList.add("paused");
+      cancelAnimationFrame(session.raf);
+      releaseWakeLock();
+    }
+  }
+  $("btn-play-pause").addEventListener("click", () => playPause(false));
+
+  $("btn-skip-fwd").addEventListener("click", () => {
+    if (!session) return;
+    cancelAnimationFrame(session.raf);
+    advancePhase();
+  });
+  $("btn-skip-back").addEventListener("click", () => {
+    if (!session) return;
+    cancelAnimationFrame(session.raf);
+    session.idx = Math.max(0, session.idx - 1);
+    session.lastTickSecond = null;
+    const startOfCurrent = session.idx === 0 ? 0 : session.cumulative[session.idx-1];
+    session.elapsedBeforePause = startOfCurrent;
+    session.phaseStartTs = performance.now();
+    renderDots();
+    session.raf = requestAnimationFrame(tick);
+  });
+  $("btn-timer-restart").addEventListener("click", () => {
+    if (!session) return;
+    if (!confirm("最初からやり直す？")) return;
+    cancelAnimationFrame(session.raf);
+    startTimer(session.template);
+  });
+  $("btn-timer-back").addEventListener("click", () => {
+    if (!session) return;
+    if (session.running && !confirm("タイマーを終了してホームに戻る？")) return;
+    cancelAnimationFrame(session.raf);
+    releaseWakeLock();
+    session = null;
+    renderHome();
+    showView("home");
+  });
+  $("btn-done-home").addEventListener("click", () => {
+    session = null;
+    renderHome();
+    showView("home");
+  });
+
+  // ---------- service worker ----------
+  if ("serviceWorker" in navigator){
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(()=>{});
+    });
+  }
+
+  renderHome();
+})();
+</script>
+</body>
+</html>

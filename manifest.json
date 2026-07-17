@@ -1,0 +1,14 @@
+{
+  "name": "筋トレタイマー",
+  "short_name": "筋トレタイマー",
+  "description": "不均等インターバル対応の筋トレ用タイマー",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
