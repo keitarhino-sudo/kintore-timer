@@ -448,24 +448,49 @@
     if (audioCtx.state === "suspended") audioCtx.resume();
     return audioCtx;
   }
-  function beep(freq, duration, delay=0){
+  // モバイルブラウザはユーザー操作の中で一度音を鳴らさないと以後の自動再生がブロックされる。
+  // ボタンタップ時に必ずこれを通して解錠する。
+  let audioUnlocked = false;
+  function unlockAudio(){
     try{
       const ctx = ensureAudio();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + delay + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + duration);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + duration + 0.02);
+      if (audioUnlocked && ctx.state === "running") return;
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+      audioUnlocked = true;
     }catch(e){}
   }
-  function playTransitionSound(){ beep(880, 0.15); beep(880, 0.15, 0.18); }
-  function playTickSound(){ beep(600, 0.08); }
-  function playFinishSound(){ beep(660,0.15,0); beep(880,0.15,0.18); beep(1046,0.25,0.36); }
+  function beep(freq, duration, delay=0, vol=0.45){
+    try{
+      const ctx = ensureAudio();
+      const play = () => {
+        const t0 = ctx.currentTime + delay;
+        // 基音＋1オクターブ上を重ねた矩形波で、サイン波より抜けの良い音にする
+        [[freq, vol], [freq*2, vol*0.25]].forEach(([f, v]) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "square";
+          osc.frequency.value = f;
+          gain.gain.setValueAtTime(0.0001, t0);
+          gain.gain.exponentialRampToValueAtTime(v, t0 + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(t0);
+          osc.stop(t0 + duration + 0.05);
+        });
+      };
+      if (ctx.state === "suspended") ctx.resume().then(play).catch(()=>{});
+      else play();
+    }catch(e){}
+  }
+  function playCountTick(){ beep(880, 0.15); }
+  function playStartSound(){ beep(1046, 0.18); beep(1568, 0.5, 0.16); }
+  function playTransitionSound(){ beep(784, 0.14); beep(988, 0.14, 0.16); beep(1319, 0.4, 0.32); }
+  function playTickSound(){ beep(988, 0.12); }
+  function playFinishSound(){ beep(784,0.18,0); beep(988,0.18,0.2); beep(1175,0.18,0.4); beep(1568,0.55,0.6); }
   function vibrate(pattern){ if (navigator.vibrate) navigator.vibrate(pattern); }
   function flash(){
     const el = $("flash");
@@ -483,7 +508,10 @@
     if (wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
   }
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && session && session.running) requestWakeLock();
+    if (document.visibilityState === "visible" && session && session.running){
+      requestWakeLock();
+      ensureAudio();
+    }
   });
 
   function startTimer(tpl){
@@ -504,8 +532,47 @@
     $("timer-tpl-name").textContent = tpl.name;
     renderDots();
     showView("timer");
-    ensureAudio();
-    playPause(true);
+    unlockAudio();
+    startWithCountdown();
+  }
+
+  // ---------- 3秒前カウントダウン ----------
+  let countdownTimers = [];
+  function cancelCountdown(){
+    countdownTimers.forEach(clearTimeout);
+    countdownTimers = [];
+    if (session) session.counting = false;
+  }
+  function startWithCountdown(){
+    if (!session || session.counting) return;
+    cancelAnimationFrame(session.raf);
+    session.counting = true;
+    const btn = $("btn-play-pause");
+    btn.textContent = "❚❚";
+    btn.classList.remove("paused");
+    const countEl = $("timer-countdown");
+    const iv = session.template.intervals[session.idx];
+    $("timer-current").textContent = `準備: ${iv.label}`;
+    $("timer-next").textContent = "";
+    requestWakeLock();
+    [3,2,1].forEach((n, i) => {
+      countdownTimers.push(setTimeout(() => {
+        countEl.textContent = n;
+        countEl.classList.remove("warn");
+        countEl.classList.add("last");
+        playCountTick();
+        vibrate(60);
+      }, i*1000));
+    });
+    countdownTimers.push(setTimeout(() => {
+      countdownTimers = [];
+      session.counting = false;
+      countEl.classList.remove("last");
+      playStartSound();
+      vibrate([120,60,200]);
+      flash();
+      playPause(true);
+    }, 3000));
   }
 
   function renderDots(){
@@ -620,15 +687,32 @@
       releaseWakeLock();
     }
   }
-  $("btn-play-pause").addEventListener("click", () => playPause(false));
+  $("btn-play-pause").addEventListener("click", () => {
+    if (!session) return;
+    unlockAudio();
+    if (session.counting){
+      // カウントダウン中のタップは一時停止扱い
+      cancelCountdown();
+      const btn = $("btn-play-pause");
+      btn.textContent = "▶";
+      btn.classList.add("paused");
+      const iv = session.template.intervals[session.idx];
+      updateStageUI(iv, Math.max(0, iv.duration - currentIntervalElapsedSec()));
+      return;
+    }
+    if (!session.running) startWithCountdown();
+    else playPause(false);
+  });
 
   $("btn-skip-fwd").addEventListener("click", () => {
-    if (!session) return;
+    if (!session || session.counting) return;
+    unlockAudio();
     cancelAnimationFrame(session.raf);
     advancePhase();
   });
   $("btn-skip-back").addEventListener("click", () => {
-    if (!session) return;
+    if (!session || session.counting) return;
+    unlockAudio();
     cancelAnimationFrame(session.raf);
     session.idx = Math.max(0, session.idx - 1);
     session.lastTickSecond = null;
@@ -641,12 +725,14 @@
   $("btn-timer-restart").addEventListener("click", () => {
     if (!session) return;
     if (!confirm("最初からやり直す？")) return;
+    cancelCountdown();
     cancelAnimationFrame(session.raf);
     startTimer(session.template);
   });
   $("btn-timer-back").addEventListener("click", () => {
     if (!session) return;
-    if (session.running && !confirm("タイマーを終了してホームに戻る？")) return;
+    if ((session.running || session.counting) && !confirm("タイマーを終了してホームに戻る？")) return;
+    cancelCountdown();
     cancelAnimationFrame(session.raf);
     releaseWakeLock();
     session = null;
