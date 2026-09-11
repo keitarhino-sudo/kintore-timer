@@ -84,8 +84,15 @@
     border-radius:10px; padding:12px 14px; font-size:16px;
   }
   .interval-row{
-    display:flex; align-items:center; gap:8px;
+    display:flex; flex-direction:column; align-items:stretch; gap:0;
     background:var(--panel); border-radius:12px; padding:10px 12px; margin-bottom:8px;
+  }
+  .iv-top{ display:flex; align-items:center; gap:8px; }
+  .iv-bottom{ display:flex; align-items:center; gap:8px; padding:8px 0 0 28px; }
+  .iv-bottom .part-label{ font-size:11px; color:var(--sub); flex-shrink:0; }
+  .iv-bottom input{
+    flex:1; min-width:0; background:var(--panel-2); border:none; color:var(--text);
+    font-size:13px; border-radius:8px; padding:7px 10px;
   }
   .interval-row .idx{ color:var(--sub); font-size:13px; width:20px; flex-shrink:0; }
   .interval-row input[type=text]{
@@ -164,8 +171,72 @@
     position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
     background:var(--panel-2); color:var(--text); padding:10px 18px; border-radius:20px;
     font-size:13px; opacity:0; pointer-events:none; transition:opacity .2s; z-index:60;
+    max-width:88%; text-align:center; line-height:1.5;
   }
   .toast.show{ opacity:1; }
+
+  /* ---------- 部位 / 履歴 / 設定 ---------- */
+  .view-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:12px 0 4px; }
+  .view-head h1{ margin:0; }
+  .head-actions{ display:flex; gap:8px; flex-shrink:0; }
+
+  .scroll-area{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0; }
+
+  .week-summary{
+    background:var(--panel); border-radius:14px; padding:12px 14px; margin-bottom:14px;
+    display:none;
+  }
+  .week-summary.show{ display:block; }
+  .ws-title{ font-size:11px; color:var(--sub); letter-spacing:.08em; margin-bottom:8px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{
+    background:var(--panel-2); color:var(--text); border-radius:999px;
+    padding:4px 10px; font-size:12px; white-space:nowrap;
+  }
+  .chip .n{ color:var(--accent-2); font-weight:700; }
+  .chip.muted{ color:var(--sub); }
+
+  .part-tag{
+    display:inline-block; background:#2c3958; color:#b9c6e4; border-radius:6px;
+    padding:1px 6px; font-size:11px; margin-right:5px;
+  }
+
+  .field select{
+    width:100%; background:var(--panel); border:1px solid #2c3958; color:var(--text);
+    border-radius:10px; padding:12px 14px; font-size:16px;
+  }
+  .field .hint{ font-size:11px; color:var(--sub); margin-top:6px; line-height:1.7; }
+
+  /* history */
+  .day-card{ background:var(--panel); border-radius:14px; padding:14px 16px; margin-bottom:10px; }
+  .day-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .day-date{ font-size:15px; font-weight:700; }
+  .day-total{ font-size:12px; color:var(--sub); flex-shrink:0; }
+  .sess-row{
+    display:flex; align-items:flex-start; gap:8px;
+    font-size:12px; color:var(--sub); padding:7px 0; border-top:1px solid #26314a;
+    line-height:1.6;
+  }
+  .sess-row .sess-main{ flex:1; min-width:0; }
+  .sess-row .sess-del{ color:var(--danger); font-size:15px; flex-shrink:0; padding:0 4px; }
+  .badge{ font-size:10px; border-radius:5px; padding:1px 5px; margin-left:5px; white-space:nowrap; }
+  .badge.pending{ background:#4a3a1a; color:var(--warn); }
+  .badge.sent{ background:#1d3b30; color:var(--accent-2); }
+  .badge.aborted{ background:#3a2430; color:#ff9db3; }
+  .day-actions{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .day-actions .btn{ padding:9px 12px; font-size:12px; flex:1; min-width:120px; }
+
+  .section-title{ font-size:12px; color:var(--sub); margin:20px 0 8px; letter-spacing:.06em; }
+  .pending-banner{
+    background:#3a2f14; color:var(--warn); border-radius:12px;
+    padding:12px 14px; font-size:13px; margin-bottom:12px; line-height:1.6;
+    display:none;
+  }
+  .pending-banner.show{ display:block; }
+  .pending-banner .btn{ margin-top:10px; width:100%; padding:10px; font-size:13px; }
+
+  .done-actions{ display:flex; flex-direction:column; gap:8px; width:100%; max-width:280px; margin-top:8px; }
+  .done-detail{ font-size:12px; color:var(--sub); line-height:1.8; margin-bottom:4px; }
 </style>
 </head>
 <body>
@@ -173,11 +244,19 @@
 
   <!-- HOME -->
   <section class="view active" id="view-home">
-    <h1>筋トレタイマー</h1>
+    <div class="view-head">
+      <h1>筋トレタイマー</h1>
+      <div class="head-actions">
+        <button class="icon-btn" id="btn-open-history" title="履歴">📊</button>
+        <button class="icon-btn" id="btn-open-settings" title="設定">⚙</button>
+      </div>
+    </div>
     <div class="sub">テンプレートを選んでスタート</div>
+    <div class="pending-banner" id="pending-banner"></div>
+    <div class="week-summary" id="week-summary"></div>
     <div id="template-list"></div>
     <div class="empty" id="home-empty" style="display:none;">
-      テンプレートがまだないで。<br>右下の「＋」から作成しよう。
+      テンプレートがまだないで。<br>下の「＋」から作成しよう。
     </div>
     <div class="fab-row">
       <button class="btn block" id="btn-new-template">＋ 新しいテンプレート</button>
@@ -190,6 +269,11 @@
     <div class="field">
       <label>テンプレート名</label>
       <input type="text" id="tpl-name" placeholder="例：いつもの筋トレ">
+    </div>
+    <div class="field">
+      <label>部位（このテンプレの既定）</label>
+      <input type="text" id="tpl-part" list="part-options" placeholder="例：腕">
+      <div class="hint">種目ごとに部位を指定しなかった場合、ここの部位で記録される。</div>
     </div>
     <div id="interval-list"></div>
     <button class="add-interval" id="btn-add-interval">＋ 種目を追加</button>
@@ -232,12 +316,100 @@
   <!-- DONE -->
   <section class="view done-screen" id="view-done">
     <div class="big">🎉</div>
-    <h1>お疲れ様！</h1>
+    <h1 id="done-title">お疲れ様！</h1>
     <div class="sub" id="done-summary"></div>
-    <button class="btn block" id="btn-done-home" style="max-width:260px;">ホームに戻る</button>
+    <div class="done-detail" id="done-detail"></div>
+    <div class="done-actions">
+      <button class="btn" id="btn-done-obsidian">📝 Obsidianに記録</button>
+      <button class="btn secondary" id="btn-done-home">ホームに戻る</button>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section class="view" id="view-history">
+    <div class="view-head">
+      <h1>記録</h1>
+      <div class="head-actions">
+        <button class="icon-btn" id="btn-history-back">✕</button>
+      </div>
+    </div>
+    <div class="sub">完走したセットだけが記録されてる</div>
+    <div class="scroll-area">
+      <div class="section-title">直近30日の部位別</div>
+      <div class="week-summary show" id="history-summary"></div>
+      <div class="section-title">日別</div>
+      <div id="history-list"></div>
+      <div class="empty" id="history-empty" style="display:none;">まだ記録がないで。</div>
+    </div>
+    <div class="fab-row">
+      <button class="btn block" id="btn-send-all">未記録をまとめてObsidianへ</button>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="view-settings">
+    <div class="view-head">
+      <h1>Obsidian連携</h1>
+      <div class="head-actions">
+        <button class="icon-btn" id="btn-settings-back">✕</button>
+      </div>
+    </div>
+    <div class="scroll-area">
+      <div class="field">
+        <label>Vault名</label>
+        <input type="text" id="set-vault" placeholder="obsidian">
+        <div class="hint">スマホのObsidianで開いてるvaultの名前。空欄なら「最後に開いたvault」に書き込まれる。</div>
+      </div>
+      <div class="field">
+        <label>専用ログノートのパス（1セッション1行を追記）</label>
+        <input type="text" id="set-logpath" placeholder="05 日記/筋トレログ">
+        <div class="hint">拡張子 .md はいらん。<code>{{YYYY}}</code> <code>{{MM}}</code> <code>{{DD}}</code> が使える。<br>例：<code>05 日記/筋トレログ-{{YYYY}}</code> で年ごとに分割。</div>
+      </div>
+      <div class="field">
+        <label>日記ノートのパス（1日の合計を追記）</label>
+        <input type="text" id="set-diarypath" placeholder="05 日記/{{YYYY}}/{{YYYY}}-{{MM}}/{{YYYY}}-{{MM}}-{{DD}}">
+        <div class="hint">空欄にすると日記への書き込みをしない。</div>
+      </div>
+      <div class="field">
+        <label>1日の切り替わり時刻</label>
+        <select id="set-daycut">
+          <option value="0">0時（普通の日付）</option>
+          <option value="3">3時</option>
+          <option value="4">4時</option>
+          <option value="5">5時</option>
+          <option value="6">6時</option>
+        </select>
+        <div class="hint">深夜の筋トレを前日扱いにするための設定。4時なら、深夜3時の筋トレは前日の記録になる。</div>
+      </div>
+      <div class="field">
+        <label>書き込み後にObsidianを開いたままにする</label>
+        <select id="set-silent">
+          <option value="1">開かない（おすすめ・書き込むだけ）</option>
+          <option value="0">書き込んだノートを開く</option>
+        </select>
+      </div>
+      <div class="section-title">データ</div>
+      <div class="day-actions">
+        <button class="btn secondary" id="btn-export-json">全記録をJSONで書き出し</button>
+        <button class="btn secondary" id="btn-import-json">JSONから復元</button>
+      </div>
+      <div class="hint" style="margin-top:10px;">端末のストレージが消えると記録も消えるから、たまに書き出してバックアップしとくと安心。</div>
+    </div>
   </section>
 
 </div>
+
+<datalist id="part-options">
+  <option value="胸"></option>
+  <option value="背中"></option>
+  <option value="肩"></option>
+  <option value="腕"></option>
+  <option value="脚"></option>
+  <option value="腹"></option>
+  <option value="体幹"></option>
+  <option value="全身"></option>
+  <option value="有酸素"></option>
+</datalist>
 <div class="flash-overlay" id="flash"></div>
 <div class="toast" id="toast"></div>
 
@@ -246,37 +418,114 @@
   "use strict";
 
   const STORAGE_KEY = "kintore-timer-templates-v1";
+  const LOG_KEY     = "kintore-timer-log-v1";
+  const SETTINGS_KEY= "kintore-timer-settings-v1";
   const RING_CIRC = 2 * Math.PI * 115;
 
   const $ = (id) => document.getElementById(id);
   const views = {
-    home: $("view-home"), editor: $("view-editor"), timer: $("view-timer"), done: $("view-done")
+    home: $("view-home"), editor: $("view-editor"), timer: $("view-timer"),
+    done: $("view-done"), history: $("view-history"), settings: $("view-settings")
   };
   function showView(name){
     Object.values(views).forEach(v => v.classList.remove("active"));
     views[name].classList.add("active");
   }
 
+  // ---------- settings ----------
+  const DEFAULT_SETTINGS = {
+    vault: "obsidian",
+    logPath: "05 日記/筋トレログ",
+    diaryPath: "05 日記/{{YYYY}}/{{YYYY}}-{{MM}}/{{YYYY}}-{{MM}}-{{DD}}",
+    dayCutHour: 4,
+    silent: true,
+  };
+  function loadSettings(){
+    try{
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(raw));
+    }catch(e){}
+    return Object.assign({}, DEFAULT_SETTINGS);
+  }
+  function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+  let settings = loadSettings();
+
+  // ---------- log ----------
+  // 1件 = 1セッション。sets には「最後まで終えた種目」だけが入る。
+  function loadLog(){
+    try{
+      const raw = localStorage.getItem(LOG_KEY);
+      if (raw) return JSON.parse(raw);
+    }catch(e){}
+    return [];
+  }
+  function saveLog(){ localStorage.setItem(LOG_KEY, JSON.stringify(log)); }
+  let log = loadLog();
+
+  // 「1日の切り替わり時刻」を考慮したローカル日付キー（YYYY-MM-DD）
+  function dayKey(ts){
+    const d = new Date(ts);
+    d.setHours(d.getHours() - settings.dayCutHour);
+    const p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+  function hhmm(ts){
+    const d = new Date(ts), p = n => String(n).padStart(2,"0");
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function expandPath(tpl, dateStr){
+    const [y, m, dd] = dateStr.split("-");
+    return tpl.replace(/\{\{YYYY\}\}/g, y).replace(/\{\{MM\}\}/g, m).replace(/\{\{DD\}\}/g, dd);
+  }
+
+  // 部位ごとに {sec, sets} を集計する
+  function aggregateByPart(sessions){
+    const map = new Map();
+    sessions.forEach(s => (s.sets || []).forEach(set => {
+      const key = set.part || "未設定";
+      const cur = map.get(key) || { sec: 0, sets: 0 };
+      cur.sec += set.sec; cur.sets += 1;
+      map.set(key, cur);
+    }));
+    return [...map.entries()].sort((a,b) => b[1].sec - a[1].sec);
+  }
+  function totalOf(sessions){
+    let sec = 0, sets = 0;
+    sessions.forEach(s => (s.sets || []).forEach(x => { sec += x.sec; sets += 1; }));
+    return { sec, sets };
+  }
+
   // ---------- storage ----------
   function loadTemplates(){
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw){
+        // 部位フィールド追加前のデータでも壊れないように補う
+        const list = JSON.parse(raw);
+        list.forEach(t => {
+          if (typeof t.part !== "string") t.part = "";
+          t.intervals.forEach(iv => { if (typeof iv.part !== "string") iv.part = ""; });
+        });
+        return list;
+      }
     } catch(e) {}
     // seed with the user's real routine on first run
     const seeded = [{
       id: cryptoId(),
       name: "いつもの筋トレ",
+      part: "",
       intervals: [
-        { label: "プッシュアップ", duration: 15 },
-        { label: "ダンベル", duration: 20 },
-        { label: "種目3", duration: 18 },
-        { label: "種目4", duration: 25 },
+        { label: "プッシュアップ", duration: 15, part: "胸" },
+        { label: "ダンベル", duration: 20, part: "腕" },
+        { label: "種目3", duration: 18, part: "" },
+        { label: "種目4", duration: 25, part: "" },
       ]
     }];
     saveTemplates(seeded);
     return seeded;
   }
+  // 種目の部位（未指定ならテンプレの既定を継承）
+  function partOf(tpl, iv){ return (iv.part || tpl.part || "").trim(); }
   function saveTemplates(list){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   }
@@ -303,11 +552,13 @@
     $("home-empty").style.display = templates.length ? "none" : "block";
     templates.forEach(tpl => {
       const total = tpl.intervals.reduce((s,i) => s+i.duration, 0);
+      // このテンプレで鍛える部位（重複を除いた一覧）
+      const parts = [...new Set(tpl.intervals.map(iv => partOf(tpl, iv)).filter(Boolean))];
       const card = document.createElement("div");
       card.className = "card";
       card.innerHTML = `
         <div class="card-info">
-          <div class="card-title">${escapeHtml(tpl.name)}</div>
+          <div class="card-title">${parts.map(p=>`<span class="part-tag">${escapeHtml(p)}</span>`).join("")}${escapeHtml(tpl.name)}</div>
           <div class="card-meta">${tpl.intervals.length}種目・計${fmtTime(total)}・${tpl.intervals.map(i=>i.duration+"s").join(" / ")}</div>
         </div>
         <div class="card-actions">
@@ -319,6 +570,33 @@
       card.querySelector(".btn-edit").addEventListener("click", () => openEditor(tpl));
       list.appendChild(card);
     });
+    renderWeekSummary();
+    renderPendingBanner();
+  }
+
+  function renderWeekSummary(){
+    const el = $("week-summary");
+    const since = Date.now() - 7*24*60*60*1000;
+    const recent = log.filter(s => s.startedAt >= since);
+    const agg = aggregateByPart(recent);
+    if (!agg.length){ el.classList.remove("show"); return; }
+    const days = new Set(recent.filter(s => (s.sets||[]).length).map(s => s.date)).size;
+    el.classList.add("show");
+    el.innerHTML = `
+      <div class="ws-title">直近7日（${days}日 実施）</div>
+      <div class="chips">
+        ${agg.map(([p, v]) => `<span class="chip">${escapeHtml(p)} <span class="n">${fmtTime(v.sec)}</span> / ${v.sets}セット</span>`).join("")}
+      </div>`;
+  }
+
+  function renderPendingBanner(){
+    const el = $("pending-banner");
+    const pending = log.filter(s => !s.sentLog && (s.sets||[]).length);
+    if (!pending.length){ el.classList.remove("show"); el.innerHTML = ""; return; }
+    el.classList.add("show");
+    el.innerHTML = `Obsidianに未記録のセッションが ${pending.length} 件あるで。
+      <button class="btn" id="btn-banner-send">まとめてObsidianへ送る</button>`;
+    $("btn-banner-send").addEventListener("click", sendAllPending);
   }
   function escapeHtml(s){
     return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -337,10 +615,11 @@
   function openEditor(tpl){
     editingId = tpl ? tpl.id : null;
     editingIntervals = tpl ? tpl.intervals.map(i => ({...i})) : [
-      { label: "種目1", duration: 20 }
+      { label: "種目1", duration: 20, part: "" }
     ];
     $("editor-title").textContent = tpl ? "テンプレート編集" : "テンプレート作成";
     $("tpl-name").value = tpl ? tpl.name : "";
+    $("tpl-part").value = tpl ? (tpl.part || "") : "";
     renderIntervalList();
     showView("editor");
   }
@@ -352,17 +631,24 @@
       const row = document.createElement("div");
       row.className = "interval-row";
       row.innerHTML = `
-        <div class="idx">${idx+1}</div>
-        <input type="text" class="label-input" value="${escapeHtml(iv.label)}" placeholder="種目名">
-        <input type="number" class="dur-input" value="${iv.duration}" min="1" max="3600">
-        <div class="sec-label">秒</div>
-        <div class="reorder-btns">
-          <button class="up">▲</button>
-          <button class="down">▼</button>
+        <div class="iv-top">
+          <div class="idx">${idx+1}</div>
+          <input type="text" class="label-input" value="${escapeHtml(iv.label)}" placeholder="種目名">
+          <input type="number" class="dur-input" value="${iv.duration}" min="1" max="3600">
+          <div class="sec-label">秒</div>
+          <div class="reorder-btns">
+            <button class="up">▲</button>
+            <button class="down">▼</button>
+          </div>
+          <div class="del">✕</div>
         </div>
-        <div class="del">✕</div>
+        <div class="iv-bottom">
+          <span class="part-label">部位</span>
+          <input type="text" class="part-input" list="part-options" value="${escapeHtml(iv.part || "")}" placeholder="未入力ならテンプレの既定">
+        </div>
       `;
       row.querySelector(".label-input").addEventListener("input", e => { iv.label = e.target.value; });
+      row.querySelector(".part-input").addEventListener("input", e => { iv.part = e.target.value; });
       row.querySelector(".dur-input").addEventListener("input", e => {
         const v = parseInt(e.target.value, 10);
         iv.duration = isNaN(v) ? 0 : v;
@@ -386,7 +672,7 @@
   }
 
   $("btn-add-interval").addEventListener("click", () => {
-    editingIntervals.push({ label: `種目${editingIntervals.length+1}`, duration: 20 });
+    editingIntervals.push({ label: `種目${editingIntervals.length+1}`, duration: 20, part: "" });
     renderIntervalList();
   });
 
@@ -395,16 +681,21 @@
   $("btn-editor-save").addEventListener("click", () => {
     const name = $("tpl-name").value.trim();
     if (!name){ toast("テンプレート名を入力して"); return; }
+    const part = $("tpl-part").value.trim();
     const cleaned = editingIntervals.filter(i => i.duration > 0);
     if (cleaned.length === 0){ toast("種目を1つ以上追加して"); return; }
-    cleaned.forEach(i => { if (!i.label.trim()) i.label = "種目"; });
+    cleaned.forEach(i => {
+      if (!i.label.trim()) i.label = "種目";
+      i.part = (i.part || "").trim();
+    });
 
     if (editingId){
       const tpl = templates.find(t => t.id === editingId);
       tpl.name = name;
+      tpl.part = part;
       tpl.intervals = cleaned;
     } else {
-      templates.push({ id: cryptoId(), name, intervals: cleaned });
+      templates.push({ id: cryptoId(), name, part, intervals: cleaned });
     }
     saveTemplates(templates);
     renderHome();
@@ -519,10 +810,14 @@
     let acc = 0;
     tpl.intervals.forEach(iv => { acc += iv.duration; cumulative.push(acc); });
     session = {
+      id: cryptoId(),
+      startedAt: Date.now(),
       template: tpl,
       cumulative,
       total: acc,
       idx: 0,
+      // 種目ごとの「最後まで終えたか」。押しただけ／スキップしたものは false のまま。
+      completedFlags: tpl.intervals.map(() => false),
       lastAnnouncedIdx: -1,
       lastTickSecond: null,
       phaseStartTs: null,
@@ -607,7 +902,7 @@
     }
 
     if (remaining <= 0){
-      advancePhase();
+      advancePhase(true); // 自然にゼロまで到達＝完走
       return;
     }
 
@@ -639,7 +934,13 @@
     return `${m}:${String(s).padStart(2,"0")}`;
   }
 
-  function advancePhase(){
+  // natural === true のときだけ「その種目を最後までやり切った」と記録する。
+  // ⏭ でスキップした場合は natural === false で呼ばれるので、記録には残らない。
+  function advancePhase(natural){
+    if (natural) {
+      session.completedFlags[session.idx] = true;
+      persistSession(false); // 途中でアプリが落ちても完走分が消えないよう都度保存
+    }
     session.idx += 1;
     session.lastTickSecond = null;
     const startOfCurrent = session.idx === 0 ? 0 : session.cumulative[session.idx-1];
@@ -657,13 +958,83 @@
     session.raf = requestAnimationFrame(tick);
   }
 
+  // 進行中／終了したセッションを log に反映する（同じ id なら上書き）。
+  // 完走した種目が1つもないセッションは、そもそも記録に残さない
+  // ＝押し間違えてすぐ戻った分はカウントされない。
+  function persistSession(ended){
+    if (!session) return null;
+    const tpl = session.template;
+    const sets = tpl.intervals
+      .map((iv, i) => session.completedFlags[i]
+        ? { label: iv.label, part: partOf(tpl, iv) || "未設定", sec: iv.duration }
+        : null)
+      .filter(Boolean);
+
+    const idx = log.findIndex(s => s.id === session.id);
+
+    if (!sets.length){
+      if (idx >= 0){ log.splice(idx, 1); saveLog(); }
+      return null;
+    }
+    const finished = session.completedFlags.every(Boolean);
+    const entry = {
+      id: session.id,
+      date: dayKey(session.startedAt),
+      startedAt: session.startedAt,
+      endedAt: ended ? Date.now() : null,
+      templateName: tpl.name,
+      finished,
+      sets,
+      sentLog: false,
+      sentDiary: false,
+    };
+    if (idx >= 0){
+      // すでに送信済みのフラグは引き継ぐ（内容が変わったら送り直せるよう finished 変化時は戻す）
+      entry.sentLog = log[idx].sentLog && log[idx].sets.length === sets.length;
+      entry.sentDiary = log[idx].sentDiary && log[idx].sets.length === sets.length;
+      log[idx] = entry;
+    } else {
+      log.push(entry);
+    }
+    saveLog();
+    return entry;
+  }
+
   function finishSession(){
     session.running = false;
     playFinishSound();
     vibrate([150,80,150,80,300]);
     releaseWakeLock();
-    const total = session.template.intervals.reduce((s,i)=>s+i.duration,0);
-    $("done-summary").textContent = `${session.template.name}（${session.template.intervals.length}種目・計${fmtTime(total)}）完了！`;
+    showDone(persistSession(true), true);
+  }
+
+  // 中断した場合も、そこまでに完走した種目は記録として残す
+  function abortSession(){
+    if (!session) return;
+    const entry = persistSession(true);
+    session = null;
+    return entry;
+  }
+
+  let doneEntry = null;
+  function showDone(entry, allFinished){
+    doneEntry = entry;
+    $("done-title").textContent = allFinished ? "お疲れ様！" : "ここまで記録したで";
+    if (!entry){
+      $("done-summary").textContent = "最後まで終えた種目がないから、記録には残してへん。";
+      $("done-detail").textContent = "";
+      $("btn-done-obsidian").style.display = "none";
+      showView("done");
+      return;
+    }
+    const t = totalOf([entry]);
+    $("done-summary").textContent =
+      `${entry.templateName}${entry.finished ? "" : "（途中終了）"}・完走 ${t.sets}セット / ${fmtTime(t.sec)}`;
+    $("done-detail").innerHTML = aggregateByPart([entry])
+      .map(([p, v]) => `<span class="part-tag">${escapeHtml(p)}</span>${fmtTime(v.sec)}・${v.sets}セット`)
+      .join("<br>");
+    $("btn-done-obsidian").style.display = "";
+    $("btn-done-obsidian").textContent = "📝 Obsidianに記録";
     showView("done");
   }
 
@@ -708,13 +1079,16 @@
     if (!session || session.counting) return;
     unlockAudio();
     cancelAnimationFrame(session.raf);
-    advancePhase();
+    advancePhase(false); // スキップ＝やってない。記録には残さない
   });
   $("btn-skip-back").addEventListener("click", () => {
     if (!session || session.counting) return;
     unlockAudio();
     cancelAnimationFrame(session.raf);
     session.idx = Math.max(0, session.idx - 1);
+    // 戻った種目はやり直すので、完走フラグをいったん取り消す
+    session.completedFlags[session.idx] = false;
+    persistSession(false);
     session.lastTickSecond = null;
     const startOfCurrent = session.idx === 0 ? 0 : session.cumulative[session.idx-1];
     session.elapsedBeforePause = startOfCurrent;
@@ -727,22 +1101,261 @@
     if (!confirm("最初からやり直す？")) return;
     cancelCountdown();
     cancelAnimationFrame(session.raf);
+    persistSession(true); // ここまでの完走分は別セッションとして残す
     startTimer(session.template);
   });
   $("btn-timer-back").addEventListener("click", () => {
     if (!session) return;
-    if ((session.running || session.counting) && !confirm("タイマーを終了してホームに戻る？")) return;
+    if ((session.running || session.counting) && !confirm("タイマーを終了する？")) return;
     cancelCountdown();
     cancelAnimationFrame(session.raf);
     releaseWakeLock();
-    session = null;
-    renderHome();
-    showView("home");
+    const entry = abortSession();
+    if (entry){
+      // 完走した種目があるなら、記録画面を見せてObsidianに送れるようにする
+      showDone(entry, false);
+    } else {
+      renderHome();
+      showView("home");
+    }
   });
   $("btn-done-home").addEventListener("click", () => {
     session = null;
+    doneEntry = null;
     renderHome();
     showView("home");
+  });
+
+  // ================= OBSIDIAN 連携 =================
+  // Obsidian 標準の URI スキーム（obsidian://new）を使う。追加プラグインは不要。
+  // append=true で既存ノートの末尾に追記、なければ新規作成される。
+  // https://obsidian.md/help/Extending+Obsidian/Obsidian+URI
+  function obsidianAppendURI(file, content){
+    const parts = [];
+    const vault = (settings.vault || "").trim();
+    if (vault) parts.push("vault=" + encodeURIComponent(vault));
+    parts.push("file=" + encodeURIComponent(file));
+    parts.push("append=true");
+    if (settings.silent) parts.push("silent=true");
+    // 既存の最終行とくっつかないよう、必ず改行から始める
+    parts.push("content=" + encodeURIComponent("\n" + content));
+    return "obsidian://new?" + parts.join("&");
+  }
+  function openURI(uri){
+    // ユーザー操作の中で呼ぶこと（そうしないとモバイルでブロックされる）
+    window.location.href = uri;
+  }
+
+  function partsPhrase(sessions, sep, wrap){
+    return aggregateByPart(sessions)
+      .map(([p, v]) => wrap ? `${p} ${fmtTime(v.sec)}(${v.sets}セット)` : `${p} ${fmtTime(v.sec)}/${v.sets}セット`)
+      .join(sep);
+  }
+  // 専用ログノート用：1セッション1行
+  function logLine(entry){
+    const t = totalOf([entry]);
+    const status = entry.finished ? "" : "（途中終了）";
+    return `- ${entry.date} ${hhmm(entry.startedAt)} ${entry.templateName}${status} ｜ ${partsPhrase([entry], "・", false)} ｜ 計 ${fmtTime(t.sec)}/${t.sets}セット`;
+  }
+  // 日記用：その日の合計を1行
+  function diaryLine(dateStr){
+    const day = log.filter(s => s.date === dateStr);
+    const t = totalOf(day);
+    return `- 筋トレ：${partsPhrase(day, " / ", true)} ｜ 計 ${fmtTime(t.sec)}・${t.sets}セット`;
+  }
+
+  function markSent(entries, field){
+    entries.forEach(e => {
+      const row = log.find(s => s.id === e.id);
+      if (row) row[field] = true;
+    });
+    saveLog();
+  }
+
+  // 未送信セッションをまとめて専用ログノートへ
+  function sendAllPending(){
+    const pending = log
+      .filter(s => !s.sentLog && (s.sets||[]).length)
+      .sort((a,b) => a.startedAt - b.startedAt);
+    if (!pending.length){ toast("未記録のセッションはないで"); return; }
+    // ログノートのパスが日付で変わる設定の場合、同じファイルに入る分だけ送る
+    const firstPath = expandPath(settings.logPath, pending[0].date) + ".md";
+    const group = pending.filter(s => expandPath(settings.logPath, s.date) + ".md" === firstPath);
+    const rest = pending.length - group.length;
+    openURI(obsidianAppendURI(firstPath, group.map(logLine).join("\n")));
+    markSent(group, "sentLog");
+    renderHome(); renderHistory();
+    toast(rest > 0
+      ? `${group.length}件を送ったで。別ファイル行きが${rest}件残ってるからもう一回押して`
+      : `${group.length}件をObsidianに送ったで`);
+  }
+
+  // 送信済みの行を二重に書かないよう、まだ送ってないセッションだけを送る
+  function sendDayToLog(dateStr){
+    const day = log.filter(s => s.date === dateStr && (s.sets||[]).length && !s.sentLog)
+                   .sort((a,b) => a.startedAt - b.startedAt);
+    if (!day.length){ toast("この日はもうログノートに送ってるで"); return; }
+    openURI(obsidianAppendURI(expandPath(settings.logPath, dateStr) + ".md", day.map(logLine).join("\n")));
+    markSent(day, "sentLog");
+    renderHome(); renderHistory();
+  }
+  // 日記はその日の「合計」を書くので、2回送ると2行になる。再送は確認してから。
+  function sendDayToDiary(dateStr){
+    if (!(settings.diaryPath || "").trim()){ toast("設定で日記のパスを入れてな"); return; }
+    const day = log.filter(s => s.date === dateStr && (s.sets||[]).length);
+    if (!day.length) return;
+    if (day.every(s => s.sentDiary) &&
+        !confirm("この日の合計はもう日記に送ってる。もう一回送ると2行になるけど、ええ？（新しい行のほうが正しい合計）")) return;
+    openURI(obsidianAppendURI(expandPath(settings.diaryPath, dateStr) + ".md", diaryLine(dateStr)));
+    markSent(day, "sentDiary");
+    renderHome(); renderHistory();
+  }
+
+  async function copyText(text){
+    try{
+      await navigator.clipboard.writeText(text);
+      toast("コピーしたで");
+    }catch(e){
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand("copy"); toast("コピーしたで"); }
+      catch(e2){ toast("コピーできんかった"); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  // 完了画面：1タップ目でログノート、2タップ目で日記
+  $("btn-done-obsidian").addEventListener("click", () => {
+    if (!doneEntry) return;
+    const row = log.find(s => s.id === doneEntry.id);
+    if (!row) return;
+    const btn = $("btn-done-obsidian");
+    if (!row.sentLog){
+      sendDayToLog(row.date);
+      btn.textContent = (settings.diaryPath || "").trim() ? "📔 日記にも追記" : "✓ 記録済み";
+    } else if ((settings.diaryPath || "").trim() && !row.sentDiary){
+      sendDayToDiary(row.date);
+      btn.textContent = "✓ 記録済み";
+    } else {
+      toast("この日はもう記録済みやで");
+    }
+  });
+
+  // ================= 履歴 =================
+  function renderHistory(){
+    const wrap = $("history-list");
+    wrap.innerHTML = "";
+    const withSets = log.filter(s => (s.sets||[]).length);
+    $("history-empty").style.display = withSets.length ? "none" : "block";
+
+    // 直近30日の部位別サマリ
+    const since = Date.now() - 30*24*60*60*1000;
+    const agg = aggregateByPart(withSets.filter(s => s.startedAt >= since));
+    const days = new Set(withSets.filter(s => s.startedAt >= since).map(s => s.date)).size;
+    $("history-summary").innerHTML = agg.length ? `
+      <div class="ws-title">${days}日 実施</div>
+      <div class="chips">${agg.map(([p,v]) =>
+        `<span class="chip">${escapeHtml(p)} <span class="n">${fmtTime(v.sec)}</span> / ${v.sets}セット</span>`).join("")}</div>`
+      : `<div class="ws-title">まだデータなし</div>`;
+
+    // 日付ごとにまとめる（新しい順）
+    const byDate = new Map();
+    withSets.forEach(s => {
+      if (!byDate.has(s.date)) byDate.set(s.date, []);
+      byDate.get(s.date).push(s);
+    });
+    [...byDate.keys()].sort().reverse().forEach(date => {
+      const day = byDate.get(date).sort((a,b) => b.startedAt - a.startedAt);
+      const t = totalOf(day);
+      const allLogSent = day.every(s => s.sentLog);
+      const allDiarySent = day.every(s => s.sentDiary);
+      const card = document.createElement("div");
+      card.className = "day-card";
+      card.innerHTML = `
+        <div class="day-head">
+          <div class="day-date">${date}</div>
+          <div class="day-total">${fmtTime(t.sec)}・${t.sets}セット</div>
+        </div>
+        <div class="chips" style="margin-bottom:4px;">
+          ${aggregateByPart(day).map(([p,v]) =>
+            `<span class="chip">${escapeHtml(p)} <span class="n">${fmtTime(v.sec)}</span>/${v.sets}</span>`).join("")}
+        </div>
+        <div class="sess-wrap"></div>
+        <div class="day-actions">
+          <button class="btn ${allLogSent ? "secondary" : ""} act-log">${allLogSent ? "✓ ログノート" : "ログノートへ"}</button>
+          <button class="btn ${allDiarySent ? "secondary" : ""} act-diary">${allDiarySent ? "✓ 日記" : "日記へ"}</button>
+          <button class="btn secondary act-copy">コピー</button>
+        </div>
+      `;
+      const sw = card.querySelector(".sess-wrap");
+      day.forEach(s => {
+        const row = document.createElement("div");
+        row.className = "sess-row";
+        row.innerHTML = `
+          <div class="sess-main">
+            ${hhmm(s.startedAt)} ${escapeHtml(s.templateName)}
+            ${s.finished ? "" : '<span class="badge aborted">途中</span>'}
+            <span class="badge ${s.sentLog ? "sent" : "pending"}">${s.sentLog ? "記録済" : "未記録"}</span>
+            <br>${(s.sets||[]).map(x => `${escapeHtml(x.part)} ${escapeHtml(x.label)} ${x.sec}秒`).join("、")}
+          </div>
+          <button class="sess-del">✕</button>`;
+        row.querySelector(".sess-del").addEventListener("click", () => {
+          if (!confirm(`${hhmm(s.startedAt)} の「${s.templateName}」の記録を消す？`)) return;
+          log = log.filter(x => x.id !== s.id);
+          saveLog(); renderHistory(); renderHome();
+        });
+        sw.appendChild(row);
+      });
+      card.querySelector(".act-log").addEventListener("click", () => sendDayToLog(date));
+      card.querySelector(".act-diary").addEventListener("click", () => sendDayToDiary(date));
+      card.querySelector(".act-copy").addEventListener("click", () =>
+        copyText(day.slice().reverse().map(logLine).join("\n") + "\n" + diaryLine(date)));
+      wrap.appendChild(card);
+    });
+  }
+
+  $("btn-open-history").addEventListener("click", () => { renderHistory(); showView("history"); });
+  $("btn-history-back").addEventListener("click", () => { renderHome(); showView("home"); });
+  $("btn-send-all").addEventListener("click", sendAllPending);
+
+  // ================= 設定 =================
+  function renderSettings(){
+    $("set-vault").value = settings.vault;
+    $("set-logpath").value = settings.logPath;
+    $("set-diarypath").value = settings.diaryPath;
+    $("set-daycut").value = String(settings.dayCutHour);
+    $("set-silent").value = settings.silent ? "1" : "0";
+  }
+  function bindSetting(id, key, transform){
+    $(id).addEventListener("change", e => {
+      settings[key] = transform ? transform(e.target.value) : e.target.value;
+      saveSettings();
+    });
+  }
+  bindSetting("set-vault", "vault");
+  bindSetting("set-logpath", "logPath");
+  bindSetting("set-diarypath", "diaryPath");
+  bindSetting("set-daycut", "dayCutHour", v => parseInt(v, 10));
+  bindSetting("set-silent", "silent", v => v === "1");
+
+  $("btn-open-settings").addEventListener("click", () => { renderSettings(); showView("settings"); });
+  $("btn-settings-back").addEventListener("click", () => { renderHome(); showView("home"); });
+
+  $("btn-export-json").addEventListener("click", () => {
+    copyText(JSON.stringify({ templates, log, settings }, null, 2));
+  });
+  $("btn-import-json").addEventListener("click", () => {
+    const raw = prompt("書き出したJSONを貼り付けてな（今のデータは上書きされる）");
+    if (!raw) return;
+    try{
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.templates)) { templates = data.templates; saveTemplates(templates); }
+      if (Array.isArray(data.log)) { log = data.log; saveLog(); }
+      if (data.settings) { settings = Object.assign({}, DEFAULT_SETTINGS, data.settings); saveSettings(); }
+      renderSettings(); renderHome(); renderHistory();
+      toast("復元したで");
+    }catch(e){ toast("JSONが読めんかった"); }
   });
 
   // ---------- service worker ----------
