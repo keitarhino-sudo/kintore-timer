@@ -1,4 +1,4 @@
-const CACHE = "kintore-timer-v5";
+const CACHE = "kintore-timer-v6";
 const ASSETS = ["./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (e) => {

@@ -1194,23 +1194,17 @@
     window.location.href = uri;
   }
 
-  function partsPhrase(sessions, sep, wrap){
-    return aggregateByPart(sessions)
-      .map(([p, v]) => wrap ? `${p} ${fmtTime(v.sec)}(${v.sets}セット)` : `${p} ${fmtTime(v.sec)}/${v.sets}セット`)
-      .join(sep);
+  // Obsidianに書くのは「日付・部位・セット数」だけ。
+  // 秒数や種目名まで書くとノイズになるので、そこはアプリの記録画面で見る。
+  function partsPhrase(sessions){
+    return aggregateByPart(sessions).map(([p, v]) => `${p} ${v.sets}セット`).join(" / ");
   }
-  // 専用ログノート用：1セッション1行
-  function logLine(entry){
-    const t = totalOf([entry]);
-    const status = entry.finished ? "" : "（途中終了）";
-    return `- ${entry.date} ${hhmm(entry.startedAt)} ${entry.templateName}${status} ｜ ${partsPhrase([entry], "・", false)} ｜ 計 ${fmtTime(t.sec)}/${t.sets}セット`;
+  function daySessions(dateStr){
+    return log.filter(s => s.date === dateStr && (s.sets || []).length);
   }
-  // 日記用：その日の合計を1行
-  function diaryLine(dateStr){
-    const day = log.filter(s => s.date === dateStr);
-    const t = totalOf(day);
-    return `- 筋トレ：${partsPhrase(day, " / ", true)} ｜ 計 ${fmtTime(t.sec)}・${t.sets}セット`;
-  }
+  // どちらのノートも「1日1行」。1日に複数回やったら合算される。
+  function dayLogLine(dateStr){ return `- ${dateStr} ${partsPhrase(daySessions(dateStr))}`; }
+  function diaryLine(dateStr){ return `- 筋トレ：${partsPhrase(daySessions(dateStr))}`; }
 
   function markSent(entries, field){
     entries.forEach(e => {
@@ -1220,49 +1214,45 @@
     saveLog();
   }
 
-  // 未送信セッションをまとめて専用ログノートへ
+  // 未記録の日をまとめて専用ログノートへ（1日1行）
   function sendAllPending(){
-    const pending = log
-      .filter(s => !s.sentLog && (s.sets||[]).length)
-      .sort((a,b) => a.startedAt - b.startedAt);
-    if (!pending.length){ toast("未記録のセッションはないで"); return; }
+    let dates = [...new Set(log.filter(s => !s.sentLog && (s.sets||[]).length).map(s => s.date))].sort();
+    if (!dates.length){ toast("未記録の日はないで"); return; }
+    // すでに送った行がある日を混ぜると、同じ日付の行が2つできてしまう
+    const partial = dates.filter(d => daySessions(d).some(s => s.sentLog));
+    if (partial.length &&
+        !confirm(`${partial.length}日分は、その日の行をすでに送ってる。\nOKで送り直す（同じ日付の行が2つになるから古いほうを消してな）。\nキャンセルならその日は飛ばす。`)){
+      dates = dates.filter(d => !partial.includes(d));
+      if (!dates.length){ toast("送るもんがなくなったで"); return; }
+    }
     // ログノートのパスが日付で変わる設定の場合、同じファイルに入る分だけ送る
-    const firstPath = expandPath(settings.logPath, pending[0].date) + ".md";
-    const group = pending.filter(s => expandPath(settings.logPath, s.date) + ".md" === firstPath);
-    const rest = pending.length - group.length;
-    openURI(obsidianAppendURI(firstPath, group.map(logLine).join("\n")));
-    markSent(group, "sentLog");
+    const firstPath = expandPath(settings.logPath, dates[0]) + ".md";
+    const group = dates.filter(d => expandPath(settings.logPath, d) + ".md" === firstPath);
+    const rest = dates.length - group.length;
+    openURI(obsidianAppendURI(firstPath, group.map(dayLogLine).join("\n")));
+    group.forEach(d => markSent(daySessions(d), "sentLog"));
     renderHome(); renderHistory();
     toast(rest > 0
-      ? `${group.length}件を送ったで。別ファイル行きが${rest}件残ってるからもう一回押して`
-      : `${group.length}件をObsidianに送ったで`);
+      ? `${group.length}日分を送ったで。別ファイル行きが${rest}日分残ってるからもう一回押して`
+      : `${group.length}日分をObsidianに送ったで`);
   }
 
-  // 送信済みの行を二重に書かないよう、まだ送ってないセッションだけを送る。
-  // ただしObsidian側に届いてなかったときのために、確認のうえ再送もできる。
-  function sendDayToLog(dateStr){
-    const all = log.filter(s => s.date === dateStr && (s.sets||[]).length)
-                   .sort((a,b) => a.startedAt - b.startedAt);
-    if (!all.length) return;
-    let day = all.filter(s => !s.sentLog);
-    if (!day.length){
-      if (!confirm("この日はもう送信済みになってる。Obsidianに届いてへんかった？\nOKで同じ内容をもう一回送る（届いてたら重複するから、その行は手で消してな）")) return;
-      day = all;
-    }
-    openURI(obsidianAppendURI(expandPath(settings.logPath, dateStr) + ".md", day.map(logLine).join("\n")));
-    markSent(day, "sentLog");
+  // どちらも「その日の1行」を書く。2回送ると同じ日付の行が2つできるので、再送は確認してから。
+  function sendDay(dateStr, field, pathTpl, line){
+    const day = daySessions(dateStr);
+    if (!day.length) return;
+    if (day.some(s => s[field]) &&
+        !confirm("この日はもう送信済みになってる。Obsidianに届いてへんかった？\nOKでもう一回送る（届いてたら同じ日付の行が2つになるから、古いほうを消してな）")) return;
+    openURI(obsidianAppendURI(expandPath(pathTpl, dateStr) + ".md", line(dateStr)));
+    markSent(day, field);
     renderHome(); renderHistory();
   }
-  // 日記はその日の「合計」を書くので、2回送ると2行になる。再送は確認してから。
+  function sendDayToLog(dateStr){
+    sendDay(dateStr, "sentLog", settings.logPath, dayLogLine);
+  }
   function sendDayToDiary(dateStr){
     if (!(settings.diaryPath || "").trim()){ toast("設定で日記のパスを入れてな"); return; }
-    const day = log.filter(s => s.date === dateStr && (s.sets||[]).length);
-    if (!day.length) return;
-    if (day.every(s => s.sentDiary) &&
-        !confirm("この日の合計はもう日記に送ってる。もう一回送ると2行になるけど、ええ？（新しい行のほうが正しい合計）")) return;
-    openURI(obsidianAppendURI(expandPath(settings.diaryPath, dateStr) + ".md", diaryLine(dateStr)));
-    markSent(day, "sentDiary");
-    renderHome(); renderHistory();
+    sendDay(dateStr, "sentDiary", settings.diaryPath, diaryLine);
   }
 
   async function copyText(text){
@@ -1368,7 +1358,7 @@
       card.querySelector(".act-log").addEventListener("click", () => sendDayToLog(date));
       card.querySelector(".act-diary").addEventListener("click", () => sendDayToDiary(date));
       card.querySelector(".act-copy").addEventListener("click", () =>
-        copyText(day.slice().reverse().map(logLine).join("\n") + "\n" + diaryLine(date)));
+        copyText(dayLogLine(date) + "\n" + diaryLine(date)));
       wrap.appendChild(card);
     });
   }
