@@ -1176,13 +1176,15 @@
   // Obsidian 標準の URI スキーム（obsidian://new）を使う。追加プラグインは不要。
   // append=true で既存ノートの末尾に追記、なければ新規作成される。
   // https://obsidian.md/help/Extending+Obsidian/Obsidian+URI
-  function obsidianAppendURI(file, content){
+  function obsidianAppendURI(file, content, forceOpen){
     const parts = [];
     const vault = (settings.vault || "").trim();
     if (vault) parts.push("vault=" + encodeURIComponent(vault));
     parts.push("file=" + encodeURIComponent(file));
     parts.push("append=true");
-    if (settings.silent) parts.push("silent=true");
+    // forceOpen のときは silent 設定を無視してノートを開く。
+    // 開かないと「Obsidianに切り替わっただけ」に見えて、成功したのか判断できないため。
+    if (settings.silent && !forceOpen) parts.push("silent=true");
     // 既存の最終行とくっつかないよう、必ず改行から始める
     parts.push("content=" + encodeURIComponent("\n" + content));
     return "obsidian://new?" + parts.join("&");
@@ -1406,11 +1408,13 @@
   $("btn-test-send").addEventListener("click", () => {
     const d = dayKey(Date.now());
     const uri = obsidianAppendURI(expandPath(settings.logPath, d) + ".md",
-      `- ${d} ${hhmm(Date.now())} 接続テスト（この行は消してOK）`);
+      `- ${d} ${hhmm(Date.now())} 接続テスト（この行は消してOK）`, true);
     $("uri-preview").classList.add("show");
     $("uri-preview").textContent =
       "このURIを開いた：\n" + decodeURIComponent(uri) +
-      "\n\nObsidianが開いて上の行が書き込まれてたら成功。\n開かへん／エラーなら Vault名 を疑う。";
+      "\n\n✅ 成功：ログノートが開いて、末尾に「接続テスト」の行が入ってる\n" +
+      "❌ 失敗：Obsidianに切り替わるだけでノートが開かへん／エラーが出る\n" +
+      "　→ Vault名を空欄にしてもう一回試す";
     openURI(uri);
   });
   $("btn-show-uri").addEventListener("click", () => {
