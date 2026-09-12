@@ -205,7 +205,7 @@
     width:100%; background:var(--panel); border:1px solid #2c3958; color:var(--text);
     border-radius:10px; padding:12px 14px; font-size:16px;
   }
-  .field .hint{ font-size:11px; color:var(--sub); margin-top:6px; line-height:1.7; }
+  .hint{ font-size:11px; color:var(--sub); margin-top:6px; line-height:1.7; }
 
   /* history */
   .day-card{ background:var(--panel); border-radius:14px; padding:14px 16px; margin-bottom:10px; }
@@ -237,6 +237,14 @@
 
   .done-actions{ display:flex; flex-direction:column; gap:8px; width:100%; max-width:280px; margin-top:8px; }
   .done-detail{ font-size:12px; color:var(--sub); line-height:1.8; margin-bottom:4px; }
+
+  .uri-preview{
+    background:var(--panel); border-radius:10px; padding:10px 12px; margin:10px 0 0;
+    font-size:10px; color:var(--sub); line-height:1.6;
+    white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto;
+    display:none;
+  }
+  .uri-preview.show{ display:block; }
 </style>
 </head>
 <body>
@@ -320,7 +328,8 @@
     <div class="sub" id="done-summary"></div>
     <div class="done-detail" id="done-detail"></div>
     <div class="done-actions">
-      <button class="btn" id="btn-done-obsidian">📝 Obsidianに記録</button>
+      <button class="btn" id="btn-done-obsidian">📝 ログノートに記録</button>
+      <button class="btn" id="btn-done-diary">📔 日記に記録</button>
       <button class="btn secondary" id="btn-done-home">ホームに戻る</button>
     </div>
   </section>
@@ -357,8 +366,8 @@
     <div class="scroll-area">
       <div class="field">
         <label>Vault名</label>
-        <input type="text" id="set-vault" placeholder="obsidian">
-        <div class="hint">スマホのObsidianで開いてるvaultの名前。空欄なら「最後に開いたvault」に書き込まれる。</div>
+        <input type="text" id="set-vault" placeholder="空欄のままでOK">
+        <div class="hint"><b>基本は空欄でええ</b>（＝Obsidianで最後に開いてたvaultに書き込まれる）。<br>vaultを複数使い分けてて、書き込み先を固定したいときだけ名前を入れる。名前が1文字でも違うと黙って失敗するので注意。</div>
       </div>
       <div class="field">
         <label>専用ログノートのパス（1セッション1行を追記）</label>
@@ -387,6 +396,17 @@
           <option value="1">開かない（おすすめ・書き込むだけ）</option>
           <option value="0">書き込んだノートを開く</option>
         </select>
+      </div>
+      <div class="section-title">うまく書き込めないとき</div>
+      <div class="day-actions">
+        <button class="btn" id="btn-test-send">テスト送信</button>
+        <button class="btn secondary" id="btn-show-uri">URIを表示</button>
+      </div>
+      <pre class="uri-preview" id="uri-preview"></pre>
+      <div class="hint">
+        「テスト送信」を押してもObsidianが開かへん・エラーが出るなら、まず<b>Vault名を空欄</b>にして試して。<br>
+        それでもあかんときは、スマホのObsidianで開いてるvaultの名前を正確に入れてみる。<br>
+        このアプリは「書き込めたかどうか」を検知でけへんから、送ったつもりでも届いてない場合がある。記録画面の「✓ログノート」をもう一回押したら再送できる。
       </div>
       <div class="section-title">データ</div>
       <div class="day-actions">
@@ -434,21 +454,34 @@
 
   // ---------- settings ----------
   const DEFAULT_SETTINGS = {
-    vault: "obsidian",
+    // 空欄 ＝ Obsidianで「最後に開いたvault」に書き込む。
+    // vault名を決め打ちすると、スマホ側のvault名が違ったときに
+    // URIが黙って弾かれて何も起きない（かつアプリ側は成功と区別できない）ので、
+    // 端末が1vaultなら空欄のほうが確実。
+    vault: "",
     logPath: "05 日記/筋トレログ",
     diaryPath: "05 日記/{{YYYY}}/{{YYYY}}-{{MM}}/{{YYYY}}-{{MM}}-{{DD}}",
     dayCutHour: 4,
     silent: true,
+    migratedVault: true,
   };
   function loadSettings(){
     try{
       const raw = localStorage.getItem(SETTINGS_KEY);
-      if (raw) return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(raw));
+      if (raw){
+        const s = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(raw));
+        // 旧バージョンが勝手に入れていた "obsidian" は慶太が選んだ値ではないので、
+        // 一度だけ空欄（＝最後に開いたvault）に戻す
+        if (!JSON.parse(raw).migratedVault && s.vault === "obsidian") s.vault = "";
+        s.migratedVault = true;
+        return s;
+      }
     }catch(e){}
     return Object.assign({}, DEFAULT_SETTINGS);
   }
   function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
   let settings = loadSettings();
+  saveSettings(); // 移行結果を書き戻す
 
   // ---------- log ----------
   // 1件 = 1セッション。sets には「最後まで終えた種目」だけが入る。
@@ -478,21 +511,33 @@
     return tpl.replace(/\{\{YYYY\}\}/g, y).replace(/\{\{MM\}\}/g, m).replace(/\{\{DD\}\}/g, dd);
   }
 
-  // 部位ごとに {sec, sets} を集計する
+  // 部位ごとに {sec, sets, items} を集計する。
+  // セット数は「1セッションで1部位につき1セット」。
+  // 肩の日に肩の種目を22個やっても “肩 1セット” であって 22セットではない。
+  // items は完走した種目の数（細かい内訳を見たいとき用）。
   function aggregateByPart(sessions){
     const map = new Map();
-    sessions.forEach(s => (s.sets || []).forEach(set => {
-      const key = set.part || "未設定";
-      const cur = map.get(key) || { sec: 0, sets: 0 };
-      cur.sec += set.sec; cur.sets += 1;
-      map.set(key, cur);
-    }));
+    sessions.forEach(s => {
+      const countedInThisSession = new Set();
+      (s.sets || []).forEach(set => {
+        const key = set.part || "未設定";
+        const cur = map.get(key) || { sec: 0, sets: 0, items: 0 };
+        cur.sec += set.sec;
+        cur.items += 1;
+        if (!countedInThisSession.has(key)){
+          cur.sets += 1;
+          countedInThisSession.add(key);
+        }
+        map.set(key, cur);
+      });
+    });
     return [...map.entries()].sort((a,b) => b[1].sec - a[1].sec);
   }
+  // 合計も同じ数え方に揃える（部位ごとのセット数の合計）
   function totalOf(sessions){
-    let sec = 0, sets = 0;
-    sessions.forEach(s => (s.sets || []).forEach(x => { sec += x.sec; sets += 1; }));
-    return { sec, sets };
+    let sec = 0, sets = 0, items = 0;
+    aggregateByPart(sessions).forEach(([, v]) => { sec += v.sec; sets += v.sets; items += v.items; });
+    return { sec, sets, items };
   }
 
   // ---------- storage ----------
@@ -1024,6 +1069,7 @@
       $("done-summary").textContent = "最後まで終えた種目がないから、記録には残してへん。";
       $("done-detail").textContent = "";
       $("btn-done-obsidian").style.display = "none";
+      $("btn-done-diary").style.display = "none";
       showView("done");
       return;
     }
@@ -1034,7 +1080,7 @@
       .map(([p, v]) => `<span class="part-tag">${escapeHtml(p)}</span>${fmtTime(v.sec)}・${v.sets}セット`)
       .join("<br>");
     $("btn-done-obsidian").style.display = "";
-    $("btn-done-obsidian").textContent = "📝 Obsidianに記録";
+    refreshDoneButtons();
     showView("done");
   }
 
@@ -1190,11 +1236,17 @@
       : `${group.length}件をObsidianに送ったで`);
   }
 
-  // 送信済みの行を二重に書かないよう、まだ送ってないセッションだけを送る
+  // 送信済みの行を二重に書かないよう、まだ送ってないセッションだけを送る。
+  // ただしObsidian側に届いてなかったときのために、確認のうえ再送もできる。
   function sendDayToLog(dateStr){
-    const day = log.filter(s => s.date === dateStr && (s.sets||[]).length && !s.sentLog)
+    const all = log.filter(s => s.date === dateStr && (s.sets||[]).length)
                    .sort((a,b) => a.startedAt - b.startedAt);
-    if (!day.length){ toast("この日はもうログノートに送ってるで"); return; }
+    if (!all.length) return;
+    let day = all.filter(s => !s.sentLog);
+    if (!day.length){
+      if (!confirm("この日はもう送信済みになってる。Obsidianに届いてへんかった？\nOKで同じ内容をもう一回送る（届いてたら重複するから、その行は手で消してな）")) return;
+      day = all;
+    }
     openURI(obsidianAppendURI(expandPath(settings.logPath, dateStr) + ".md", day.map(logLine).join("\n")));
     markSent(day, "sentLog");
     renderHome(); renderHistory();
@@ -1225,21 +1277,25 @@
     }
   }
 
-  // 完了画面：1タップ目でログノート、2タップ目で日記
+  // 完了画面：1回のURIで書けるのは1ファイルだけなので、ログノートと日記は別ボタンにする
+  function refreshDoneButtons(){
+    const row = doneEntry ? log.find(s => s.id === doneEntry.id) : null;
+    const logBtn = $("btn-done-obsidian"), diaryBtn = $("btn-done-diary");
+    logBtn.textContent = row && row.sentLog ? "✓ ログノートに記録済み" : "📝 ログノートに記録";
+    logBtn.className = row && row.sentLog ? "btn secondary" : "btn";
+    diaryBtn.style.display = (settings.diaryPath || "").trim() ? "" : "none";
+    diaryBtn.textContent = row && row.sentDiary ? "✓ 日記に記録済み" : "📔 日記に記録";
+    diaryBtn.className = row && row.sentDiary ? "btn secondary" : "btn";
+  }
   $("btn-done-obsidian").addEventListener("click", () => {
     if (!doneEntry) return;
-    const row = log.find(s => s.id === doneEntry.id);
-    if (!row) return;
-    const btn = $("btn-done-obsidian");
-    if (!row.sentLog){
-      sendDayToLog(row.date);
-      btn.textContent = (settings.diaryPath || "").trim() ? "📔 日記にも追記" : "✓ 記録済み";
-    } else if ((settings.diaryPath || "").trim() && !row.sentDiary){
-      sendDayToDiary(row.date);
-      btn.textContent = "✓ 記録済み";
-    } else {
-      toast("この日はもう記録済みやで");
-    }
+    sendDayToLog(doneEntry.date);
+    refreshDoneButtons();
+  });
+  $("btn-done-diary").addEventListener("click", () => {
+    if (!doneEntry) return;
+    sendDayToDiary(doneEntry.date);
+    refreshDoneButtons();
   });
 
   // ================= 履歴 =================
@@ -1339,8 +1395,35 @@
   bindSetting("set-daycut", "dayCutHour", v => parseInt(v, 10));
   bindSetting("set-silent", "silent", v => v === "1");
 
-  $("btn-open-settings").addEventListener("click", () => { renderSettings(); showView("settings"); });
+  $("btn-open-settings").addEventListener("click", () => {
+    renderSettings();
+    $("uri-preview").classList.remove("show");
+    showView("settings");
+  });
   $("btn-settings-back").addEventListener("click", () => { renderHome(); showView("home"); });
+
+  // 書き込めたかどうかをアプリ側から検知できないので、手で確かめる手段を用意しておく
+  $("btn-test-send").addEventListener("click", () => {
+    const d = dayKey(Date.now());
+    const uri = obsidianAppendURI(expandPath(settings.logPath, d) + ".md",
+      `- ${d} ${hhmm(Date.now())} 接続テスト（この行は消してOK）`);
+    $("uri-preview").classList.add("show");
+    $("uri-preview").textContent =
+      "このURIを開いた：\n" + decodeURIComponent(uri) +
+      "\n\nObsidianが開いて上の行が書き込まれてたら成功。\n開かへん／エラーなら Vault名 を疑う。";
+    openURI(uri);
+  });
+  $("btn-show-uri").addEventListener("click", () => {
+    const d = dayKey(Date.now());
+    const logU = decodeURIComponent(obsidianAppendURI(expandPath(settings.logPath, d) + ".md", "- サンプル行"));
+    const diaryU = (settings.diaryPath || "").trim()
+      ? decodeURIComponent(obsidianAppendURI(expandPath(settings.diaryPath, d) + ".md", "- 筋トレ：サンプル"))
+      : "（日記のパスが空欄やから書き込まへん）";
+    const text = "【ログノート】\n" + logU + "\n\n【日記】\n" + diaryU;
+    $("uri-preview").classList.add("show");
+    $("uri-preview").textContent = text;
+    copyText(text);
+  });
 
   $("btn-export-json").addEventListener("click", () => {
     copyText(JSON.stringify({ templates, log, settings }, null, 2));
